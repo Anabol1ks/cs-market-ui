@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Cookies from "js-cookie";
+import { set } from 'date-fns'
 
 // Временные данные для примера
 const mockUser = {
@@ -35,6 +36,7 @@ const mockInventory = Array.from({ length: 6 }, (_, i) => ({
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState('inventory');
+	const [steamInventory, setSteamInventory] = useState([])
 
   const [user, setUser] = useState(mockUser);
   const [loading, setLoading] = useState(false)
@@ -63,10 +65,8 @@ export default function ProfilePage() {
 					throw new Error(`Ошибка запроса: ${response.status}`)
 				}
 				const users = await response.json()
-        console.log(users)
 				setUser(users)
 			} catch (error) {
-				console.error('Ошибка:', error)
 			} finally {
 				setLoading(false)
 			}
@@ -74,6 +74,64 @@ export default function ProfilePage() {
 		}
 		fecthUsers()
 	}, [])
+
+	useEffect(() => {
+		async function fetchSteamInventory() {
+			setLoading(true)
+			try {
+				const token = Cookies.get('access_token')
+				if (!token) {
+					throw new Error('Токен не найден в cookie')
+				}
+
+				const response = await fetch(
+					`${process.env.NEXT_PUBLIC_API_URL}/profile/inventory`,
+					{
+						method: 'GET',
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${token}`,
+						},
+					}
+				)
+
+				if (!response.ok) {
+					throw new Error(`Ошибка запроса: ${response.status}`)
+				}
+
+				const steamInv = await response.json()
+				console.log('API Response:', steamInv)
+
+				// Проверяем, что данные пришли
+				if (!steamInv.inventory || !Array.isArray(steamInv.inventory)) {
+					throw new Error(`Некорректный ответ API: ${JSON.stringify(steamInv)}`)
+				}
+
+				// Фильтруем предметы, которые можно продать или обменять
+				const marketableItems = steamInv.inventory.filter(
+					item => item.marketable === 1 && item.tradable === 1
+				)
+
+				// Обрабатываем и выводим результат
+				const mergedInventory = marketableItems.map(item => ({
+					classid: item.classid,
+					market_name: item.market_name,
+					icon_url: item.icon_url,
+					price: item.price, // Убедитесь, что это поле всегда есть, иначе можно обработать условие
+				}))
+
+				console.log('Processed Inventory:', mergedInventory)
+				setSteamInventory(mergedInventory)
+			} catch (error) {
+				console.error('Ошибка загрузки инвентаря:', error)
+			} finally {
+				setLoading(false)
+			}
+		}
+
+		fetchSteamInventory()
+	}, [])
+
 
 
   return (
@@ -133,8 +191,9 @@ export default function ProfilePage() {
 
 			{/* Вкладки */}
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
-				<TabsList className='grid grid-cols-3 w-full md:w-[400px]'>
+				<TabsList className='grid grid-cols-4 w-full md:w-[550px]'>
 					<TabsTrigger value='inventory'>Инвентарь</TabsTrigger>
+					<TabsTrigger value='inventorySteam'>Инвентарь Стим</TabsTrigger>
 					<TabsTrigger value='trades'>История</TabsTrigger>
 					<TabsTrigger value='settings'>Настройки</TabsTrigger>
 				</TabsList>
@@ -158,6 +217,67 @@ export default function ProfilePage() {
 								</div>
 							</Card>
 						))}
+					</div>
+				</TabsContent>
+
+				<TabsContent value='inventorySteam' className='mt-6'>
+					<div className='grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4'>
+						{steamInventory.length > 0 ? (
+							steamInventory.map(item => (
+								<Card
+									key={item.assetid}
+									className={`
+            overflow-hidden rounded-lg group relative
+            ${
+							item.price < 10
+								? 'bg-gray-900/90 grayscale'
+								: 'bg-gray-800 hover:shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all duration-200'
+						}
+          `}
+								>
+									<div className='relative w-full h-28 sm:h-32 md:h-36 bg-gray-900 flex items-center justify-center'>
+										<Image
+											src={item.icon_url}
+											alt={item.market_name}
+											fill
+											className={`
+                object-contain p-2
+                ${
+									item.price < 10
+										? 'opacity-75'
+										: 'hover:scale-110 transition-transform duration-200'
+								}
+              `}
+										/>
+									</div>
+									<div
+										className={`
+            p-1.5 text-left text-sm font-medium
+            ${item.price < 10 ? 'text-gray-500' : 'text-primary'}
+          `}
+									>
+										{item.price + ' руб.'}
+									</div>
+									<div className='p-2 text-center'>
+										<h3
+											className={`
+              text-xs sm:text-sm font-medium truncate px-1
+              ${item.price < 10 ? 'text-gray-400' : 'text-gray-200'}
+            `}
+										>
+											{item.market_name}
+										</h3>
+									</div>
+									<div className='absolute invisible group-hover:visible bg-black/90 p-2 rounded-md text-xs text-white -bottom-full left-1/2 -translate-x-1/2 w-max max-w-[300px] z-50 whitespace-normal break-words'>
+										{item.market_name}
+									</div>
+								</Card>
+							))
+						) : (
+							<p className='text-center text-gray-400 py-8 text-lg'>
+								Инвентарь пуст
+							</p>
+						)}
 					</div>
 				</TabsContent>
 
