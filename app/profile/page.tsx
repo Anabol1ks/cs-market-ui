@@ -133,7 +133,6 @@ export default function ProfilePage() {
 	}, [])
 
 
-
   return (
 		<div className='space-y-6'>
 			{/* Профиль */}
@@ -152,7 +151,7 @@ export default function ProfilePage() {
 						<div>
 							<h1 className='text-2xl font-bold'>{user.Username}</h1>
 							<p className='text-muted-foreground'>
-								Steam Level: {mockUser.steamLevel}
+								Steam Level: {user.SteamLVL}
 							</p>
 						</div>
 
